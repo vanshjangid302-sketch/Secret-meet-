@@ -1,22 +1,156 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#100c16">
+  <meta name="description" content="Secret Meet — discover people, make a match, and start a conversation. 18+ only.">
   <title>Secret Meet</title>
-  <style>
-    body {
-      background: #0e0d14;
-      color: white;
-      font-family: Arial, sans-serif;
-      text-align: center;
-      padding: 60px 20px;
-    }
-    h1 { color: #e879f9; }
-  </style>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9D%A4%EF%B8%8F%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>Secret Meet ❤️</h1>
-  <p>Welcome to Secret Meet!</p>
+  <header class="top">
+    <a class="brand" href="#discover" data-view="discover">Secret <span>Meet</span></a>
+    <nav id="mainNav" class="hidden" aria-label="Main">
+      <a href="#discover" data-view="discover">Discover</a>
+      <a href="#matches" data-view="matches">Matches</a>
+      <a href="#profile" data-view="profile">My profile</a>
+      <button class="navlogout" id="logout" type="button">Log out</button>
+    </nav>
+  </header>
+
+  <main>
+    <div id="setupNotice" class="notice hidden" role="alert"></div>
+
+    <section class="hero" id="hero">
+      <p class="eyebrow">Meet someone nearby</p>
+      <h1>Real connections.<br><span>One secret at a time.</span></h1>
+      <p class="sub">Discover people, make a match, and start a conversation.</p>
+    </section>
+
+    <!-- Login / sign up -->
+    <section class="panel" id="auth">
+      <h2>Welcome</h2>
+      <p class="muted">Sign in or create your account</p>
+      <div class="tabs" role="tablist">
+        <button class="active" id="loginTab" type="button" role="tab" aria-selected="true">Login</button>
+        <button id="signupTab" type="button" role="tab" aria-selected="false">Sign up</button>
+      </div>
+      <form id="authForm" novalidate>
+        <label>Email<input type="email" id="email" required autocomplete="email" placeholder="you@example.com"></label>
+        <label>Password<input type="password" id="password" required minlength="6" autocomplete="current-password" placeholder="At least 6 characters"></label>
+        <label class="check hidden" id="ageConfirmRow">
+          <input type="checkbox" id="ageConfirm">
+          <span>I confirm I am 18 or older and agree to treat everyone with respect.</span>
+        </label>
+        <button class="primary" type="submit" id="submitAuth">Login</button>
+      </form>
+      <p id="status" class="status" aria-live="polite"></p>
+    </section>
+
+    <!-- Discover -->
+    <section class="panel hidden" id="discover">
+      <div class="panelhead">
+        <div>
+          <h2>Discover</h2>
+          <p class="muted" id="discoverCount">Finding people for you…</p>
+        </div>
+        <button class="ghost small" id="refresh" type="button">Refresh</button>
+      </div>
+
+      <article class="card hidden" id="profileCard">
+        <div class="photo" id="cardPhoto">
+          <img id="cardImg" alt="" class="hidden" referrerpolicy="no-referrer">
+          <span class="initials" id="cardInitials"></span>
+          <div class="overlay">
+            <h3 id="cardName"></h3>
+            <p id="cardCity"></p>
+          </div>
+        </div>
+        <p class="cardbio" id="cardBio"></p>
+        <div class="actions">
+          <button class="round pass" id="passBtn" type="button" aria-label="Pass" title="Pass (←)">✕</button>
+          <button class="round like" id="likeBtn" type="button" aria-label="Like" title="Like (→)">♥</button>
+        </div>
+        <div class="safety">
+          <button class="linkish" id="cardReport" type="button">Report</button>
+          <span aria-hidden="true">·</span>
+          <button class="linkish" id="cardBlock" type="button">Block</button>
+        </div>
+      </article>
+
+      <div class="empty hidden" id="discoverEmpty">
+        <div class="emptyicon">♥</div>
+        <h3>No more profiles for now</h3>
+        <p class="muted">Check again later as new people join.</p>
+      </div>
+      <div id="profilesList" class="status" aria-live="polite"></div>
+    </section>
+
+    <!-- Matches -->
+    <section class="panel hidden" id="matches">
+      <div class="panelhead">
+        <div>
+          <h2>Matches</h2>
+          <p class="muted">People who liked you back. Tap to chat.</p>
+        </div>
+        <button class="ghost small" id="refreshMatches" type="button">Refresh</button>
+      </div>
+      <ul class="matchlist" id="matchList"></ul>
+      <div class="empty hidden" id="matchesEmpty">
+        <div class="emptyicon">✦</div>
+        <h3>No matches yet</h3>
+        <p class="muted">When someone you like likes you back, they appear here.</p>
+      </div>
+      <p id="matchesStatus" class="status" aria-live="polite"></p>
+    </section>
+
+    <!-- Chat -->
+    <section class="panel hidden" id="chat">
+      <div class="chathead">
+        <button class="ghost small back" id="chatBack" type="button" aria-label="Back to matches">←</button>
+        <div class="avatar" id="chatAvatar"></div>
+        <div class="chatwho">
+          <strong id="chatName"></strong>
+          <span class="muted" id="chatMeta"></span>
+        </div>
+        <div class="chatsafety">
+          <button class="linkish" id="chatReport" type="button">Report</button>
+          <button class="linkish" id="chatBlock" type="button">Block</button>
+        </div>
+      </div>
+      <div class="messages" id="messageList" aria-live="polite"></div>
+      <form class="composer" id="messageForm">
+        <input id="messageInput" maxlength="1000" autocomplete="off" placeholder="Write a message…" aria-label="Message">
+        <button class="primary" type="submit" id="sendBtn">Send</button>
+      </form>
+      <p id="chatStatus" class="status" aria-live="polite"></p>
+    </section>
+
+    <!-- Profile -->
+    <section class="panel hidden" id="profile">
+      <h2>Your profile</h2>
+      <p class="muted" id="profileHint">A complete profile helps people connect.</p>
+      <div class="avatar big" id="profileAvatar"></div>
+      <form id="profileForm">
+        <label>Display name<input id="displayName" maxlength="40" required autocomplete="nickname"></label>
+        <label>Age<input id="age" type="number" min="18" max="99" required inputmode="numeric"></label>
+        <label>City<input id="city" maxlength="60" placeholder="Where are you based?" autocomplete="address-level2"></label>
+        <label>Photo URL<input id="photoUrl" type="url" maxlength="500" placeholder="https://…"></label>
+        <label>About you<textarea id="bio" maxlength="300" placeholder="A little about yourself"></textarea></label>
+        <button class="primary" type="submit" id="saveProfile">Save profile</button>
+      </form>
+      <p id="profileStatus" class="status" aria-live="polite"></p>
+    </section>
+  </main>
+
+  <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
+
+  <footer>Secret Meet · 18+ only · Be respectful. Meet safely.</footer>
+
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
