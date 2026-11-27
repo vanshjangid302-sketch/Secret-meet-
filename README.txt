@@ -1,9 +1,16 @@
-SECRET MEET — SINGLE FILE PACKAGE
+SECRET MEET LOGIN FIX
 
-This ZIP contains the single-file website as index.html.
+This ZIP contains a replacement index.html for the ROOT of your GitHub Pages repository.
 
-Upload/replace index.html in your GitHub repository (Secret-meet-), commit the change, and wait for GitHub Pages to publish.
+Install:
+1. Open https://github.com/vanshjangid302-sketch/Secret-meet-
+2. Open the existing index.html file.
+3. Choose Edit (pencil), select all old content, and replace it with the content of this new index.html; OR use Add file > Upload files and upload this index.html, then confirm replacement.
+4. Commit changes to the main branch.
+5. Open https://vanshjangid302-sketch.github.io/Secret-meet/?v=loginfix1
+6. Enter your Supabase Project URL and PUBLIC anon/publishable key, press Save & Connect, then log in.
 
-Supabase public URL is already configured in the page. The public anon/publishable key must be entered in the website's Connect/setup panel when prompted. Do NOT use a Supabase service_role/secret key.
-
-Note: This package has not been live-tested against your Supabase project/schema or RLS policies. Verify auth, profile, likes/matches, chat and admin moderation before treating it as production-ready.
+IMPORTANT:
+- This is a frontend login/connect repair, not proof that the entire dating site is production-ready.
+- Only use the Supabase anon/publishable key in the browser. NEVER paste the service_role/secret key.
+- If the password is wrong, email is unconfirmed, or Supabase Auth settings block login, the page now displays the returned error in the status area.
