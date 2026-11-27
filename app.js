@@ -1,41 +1,281 @@
-/* Secret Meet frontend — wired to current index.html and config.js */
-(() => {
-  'use strict';
-  const cfg = window.SECRET_MEET_CONFIG || {};
-  const url = cfg.SUPABASE_URL;
-  const key = cfg.SUPABASE_ANON_KEY;
-  const $ = (id) => document.getElementById(id);
-  const setText = (id, text) => { const el=$(id); if(el) el.textContent=text||''; };
-  const show = (id, yes=true) => { const el=$(id); if(el) el.classList.toggle('hidden', !yes); };
-  const status = (id, text, error=false) => { setText(id,text); const el=$(id); if(el) el.style.color=error?'#c94c61':''; };
-  if (!url || !key || !window.supabase?.createClient) {
-    show('setupNotice',true); setText('setupNotice','Setup pending: Supabase URL and public key must be configured in config.js.'); return;
+
+// Secret Meet — app.js
+// Supabase login, signup, profile, matching, chat & admin
+
+const SUPABASE_URL = "https://jcgkforrpinbwvosjvwb.supabase.co";
+const SUPABASE_ANON_KEY = "PASTE_YOUR_SUPABASE_ANON_KEY_HERE";
+
+const db = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY
+);
+
+// ---------- HELPERS ----------
+const $ = (id) => document.getElementById(id);
+const currentUser = () => db.auth.getUser();
+
+async function getUser() {
+  const { data } = await db.auth.getUser();
+  return data?.user || null;
+}
+
+function showMessage(message) {
+  alert(message);
+}
+
+// ---------- SIGNUP ----------
+async function signup(email, password, name) {
+  const { data, error } = await db.auth.signUp({
+    email,
+    password
+  });
+
+  if (error) return showMessage(error.message);
+
+  if (data.user) {
+    const { error: profileError } = await db
+      .from("profiles")
+      .upsert({
+        id: data.user.id,
+        name: name,
+        status: "active"
+      });
+
+    if (profileError) {
+      showMessage(profileError.message);
+      return;
+    }
   }
-  const db = window.supabase.createClient(url,key);
-  let user=null, profile=null, discover=[], idx=0, matches=[], currentMatch=null, chatPartner=null, authMode='login';
-  const toast=(msg)=>{const t=$('toast'); if(!t)return; t.textContent=msg; t.classList.remove('hidden'); setTimeout(()=>t.classList.add('hidden'),3500);};
-  function showAuth(){ ['auth','hero'].forEach(id=>show(id,true)); ['discover','matches','chat','profile'].forEach(id=>show(id,false)); if($('mainNav')) $('mainNav').classList.add('hidden'); }
-  function nav(view){ ['discover','matches','chat','profile'].forEach(id=>show(id,id===view)); show('auth',false); show('hero',false); if($('mainNav')) $('mainNav').classList.remove('hidden'); $$('#mainNav [data-view]').forEach(a=>a.classList.toggle('active',a.dataset.view===view)); }
-  const $$=(sel)=>Array.from(document.querySelectorAll(sel));
-  async function profileFor(uid){ const {data,error}=await db.from('profiles').select('*').eq('id',uid).maybeSingle(); if(error)throw error; return data; }
-  async function loadMyProfile(){ profile=await profileFor(user.id); if(!profile){ const display=user.user_metadata?.name||user.user_metadata?.full_name||user.email?.split('@')[0]||'Member'; const {data,error}=await db.from('profiles').insert({id:user.id,name:display}).select('*').maybeSingle(); if(error){ console.warn('profile create:',error.message); profile={id:user.id,name:display}; } else profile=data; } }
-  async function afterAuth(){ await loadMyProfile(); show('auth',false); show('hero',false); $('mainNav')?.classList.remove('hidden'); nav('discover'); await loadDiscover(); await loadMatches(); }
-  async function authSubmit(e){ e.preventDefault(); const email=$('email')?.value.trim(), password=$('password')?.value, ageOk=$('ageConfirm')?.checked; if(!email||!password){status('status','Email and password required.',true);return;} try{ if(authMode==='signup'){ if(!ageOk){status('status','Please confirm you are 18 or older.',true);return;} const {data,error}=await db.auth.signUp({email,password,options:{data:{name:email.split('@')[0]}}}); if(error)throw error; if(data.session){user=data.user; await afterAuth();} else status('status','Account created. Check email to confirm.'); } else { const {data,error}=await db.auth.signInWithPassword({email,password}); if(error)throw error; user=data.user; await afterAuth(); } }catch(err){status('status',err.message,true);} }
-  function setAuthMode(mode){authMode=mode; const signup=mode==='signup'; $('loginTab')?.classList.toggle('active',!signup); $('signupTab')?.classList.toggle('active',signup); $('loginTab')?.setAttribute('aria-selected',String(!signup)); $('signupTab')?.setAttribute('aria-selected',String(signup)); $('submitAuth').textContent=signup?'Create account':'Login'; show('ageConfirmRow',signup); if($('password')) $('password').autocomplete=signup?'new-password':'current-password'; status('status','');}
-  async function loadDiscover(){ if(!user)return; try{const {data,error}=await db.from('profiles').select('*').neq('id',user.id).limit(100); if(error)throw error; discover=(data||[]).filter(p=>p.status!=='blocked'&&p.status!=='suspended'); idx=0; renderCard(); }catch(e){status('discoverCount','Could not load profiles: '+e.message,true);}}
-  function renderCard(){ const p=discover[idx]; if(!p){show('profileCard',false);show('discoverEmpty',true);setText('discoverCount','No more profiles for now');return;} show('discoverEmpty',false);show('profileCard',true);setText('discoverCount',`${discover.length-idx} profiles available`); const nm=p.name||p.username||'Member';setText('cardName',nm);setText('cardCity',p.city||'');setText('cardBio',p.bio||'');setText('cardInitials',nm.slice(0,2).toUpperCase()); const img=$('cardImg'); if(img){if(p.photo_url){img.src=p.photo_url;img.classList.remove('hidden');$('cardInitials')?.classList.add('hidden');img.onerror=()=>{img.classList.add('hidden');$('cardInitials')?.classList.remove('hidden');};}else{img.removeAttribute('src');img.classList.add('hidden');$('cardInitials')?.classList.remove('hidden');}}; $('likeBtn').onclick=()=>like(p);$('passBtn').onclick=()=>{idx++;renderCard();}; $('cardReport').onclick=()=>report(p.id); $('cardBlock').onclick=()=>block(p.id); }
-  async function like(p){try{const {error}=await db.from('likes').insert({liker_id:user.id,liked_id:p.id});if(error&&!/duplicate|unique/i.test(error.message))throw error; const {data:rec,error:re}=await db.from('likes').select('*').eq('liker_id',p.id).eq('liked_id',user.id).maybeSingle();if(re)throw re;if(rec){const {error:me}=await db.from('matches').insert({user1_id:user.id,user2_id:p.id});if(me&&!/duplicate|unique/i.test(me.message))throw me;toast("It's a match!");await loadMatches();}else toast('Like sent');idx++;renderCard();}catch(e){toast(e.message);}}
-  async function loadMatches(){if(!user)return;try{const {data,error}=await db.from('matches').select('*').or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`);if(error)throw error;matches=data||[];renderMatches();}catch(e){status('matchesStatus','Matches load error: '+e.message,true);}}
-  async function renderMatches(){const ul=$('matchList');if(!ul)return;ul.innerHTML='';show('matchesEmpty',matches.length===0);for(const m of matches){const otherId=m.user1_id===user.id?m.user2_id:m.user1_id;try{const p=await profileFor(otherId);const li=document.createElement('li');li.className='matchitem';li.textContent=p?.name||p?.username||'Match';li.addEventListener('click',()=>openChat(m, p));ul.appendChild(li);}catch(err){console.warn(err);}}}
-  async function openChat(match,p){currentMatch=match;chatPartner=p;nav('chat');setText('chatName',p?.name||p?.username||'Match');setText('chatMeta',p?.city||'');setText('chatAvatar',(p?.name||'M').slice(0,1).toUpperCase());$('chatReport').onclick=()=>report(p.id);$('chatBlock').onclick=()=>block(p.id);await loadMessages();}
-  async function loadMessages(){if(!currentMatch)return;const id=currentMatch.match_id||currentMatch.id;const {data,error}=await db.from('messages').select('*').eq('match_id',id).order('created_at',{ascending:true});if(error){status('chatStatus','Messages error: '+error.message,true);return;}const list=$('messageList');if(!list)return;list.innerHTML='';for(const msg of (data||[])){const d=document.createElement('div');d.className='message'+(msg.sender_id===user.id?' mine':'');d.textContent=msg.body||'';list.appendChild(d);}list.scrollTop=list.scrollHeight;}
-  async function sendChat(e){e.preventDefault();const input=$('messageInput'),body=input?.value.trim();if(!body||!currentMatch)return;try{const {error}=await db.from('messages').insert({match_id:currentMatch.match_id||currentMatch.id,sender_id:user.id,body});if(error)throw error;input.value='';await loadMessages();}catch(err){status('chatStatus',err.message,true);}}
-  async function block(uid){try{const {error}=await db.from('blocks').insert({blocker_id:user.id,blocked_id:uid});if(error&&!/duplicate|unique/i.test(error.message))throw error;toast('User blocked');await loadDiscover();}catch(e){toast('Block error: '+e.message);}}
-  async function report(uid){const reason=prompt('Why are you reporting this profile?');if(reason===null)return;try{const {error}=await db.from('reports').insert({reporter_id:user.id,reported_id:uid,reason});if(error)throw error;toast('Report submitted');}catch(e){toast('Report error: '+e.message);}}
-  async function saveProfile(e){e.preventDefault();try{const updates={name:$('displayName').value.trim(),age:Number($('age').value),city:$('city').value.trim(),photo_url:$('photoUrl').value.trim(),bio:$('bio').value.trim()};const {data,error}=await db.from('profiles').update(updates).eq('id',user.id).select().maybeSingle();if(error)throw error;profile=data;status('profileStatus','Profile saved.');toast('Profile saved');}catch(err){status('profileStatus',err.message,true);}}
-  function fillProfile(){if(!profile)return;$('displayName').value=profile.name||profile.username||'';$('age').value=profile.age||'';$('city').value=profile.city||'';$('photoUrl').value=profile.photo_url||'';$('bio').value=profile.bio||'';}
-  async function logout(){await db.auth.signOut();user=null;profile=null;showAuth();toast('Logged out');}
-  function wire(){ $('authForm')?.addEventListener('submit',authSubmit);$('loginTab')?.addEventListener('click',()=>setAuthMode('login'));$('signupTab')?.addEventListener('click',()=>setAuthMode('signup'));$('logout')?.addEventListener('click',logout);$('refresh')?.addEventListener('click',loadDiscover);$('refreshMatches')?.addEventListener('click',loadMatches);$('messageForm')?.addEventListener('submit',sendChat);$('chatBack')?.addEventListener('click',()=>nav('matches'));$('profileForm')?.addEventListener('submit',saveProfile);$$('#mainNav [data-view]').forEach(a=>a.addEventListener('click',async e=>{e.preventDefault();const v=a.dataset.view;nav(v);if(v==='discover')await loadDiscover();if(v==='matches')await loadMatches();if(v==='profile')fillProfile();})); }
-  async function start(){wire();try{const {data,error}=await db.auth.getSession();if(error)throw error;if(data.session){user=data.session.user;await afterAuth();}else showAuth();}catch(err){showAuth();status('status',err.message,true);}}
-  start();
-})();
+
+  showMessage("Signup successful! Please login.");
+}
+
+// ---------- LOGIN ----------
+async function login(email, password) {
+  const { data, error } = await db.auth.signInWithPassword({
+    email,
+    password
+  });
+
+  if (error) return showMessage(error.message);
+
+  showMessage("Login successful!");
+  location.reload();
+}
+
+// ---------- LOGOUT ----------
+async function logout() {
+  const { error } = await db.auth.signOut();
+  if (error) return showMessage(error.message);
+  location.reload();
+}
+
+// ---------- CURRENT PROFILE ----------
+async function loadProfile() {
+  const user = await getUser();
+  if (!user) return null;
+
+  const { data, error } = await db
+    .from("profiles")
+    .select("*")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (error) {
+    console.error(error);
+    return null;
+  }
+
+  return data;
+}
+
+// ---------- UPDATE PROFILE ----------
+async function updateProfile(fields) {
+  const user = await getUser();
+  if (!user) return showMessage("Please login first.");
+
+  const { error } = await db
+    .from("profiles")
+    .update(fields)
+    .eq("id", user.id);
+
+  if (error) return showMessage(error.message);
+  showMessage("Profile updated!");
+}
+
+// ---------- FIND MATCHES ----------
+async function findMatches() {
+  const user = await getUser();
+  if (!user) return showMessage("Please login first.");
+
+  const { data, error } = await db
+    .from("profiles")
+    .select("*")
+    .neq("id", user.id)
+    .eq("status", "active");
+
+  if (error) {
+    console.error(error);
+    showMessage("Unable to load matches.");
+    return [];
+  }
+
+  return data || [];
+}
+
+// ---------- LIKE USER ----------
+async function likeUser(targetId) {
+  const user = await getUser();
+  if (!user) return showMessage("Please login first.");
+  if (targetId === user.id) return;
+
+  const { error } = await db.from("likes").insert({
+    user_id: user.id,
+    liked_user_id: targetId
+  });
+
+  if (error && error.code !== "23505") {
+    showMessage(error.message);
+    return;
+  }
+
+  const { data: mutual } = await db
+    .from("likes")
+    .select("*")
+    .eq("user_id", targetId)
+    .eq("liked_user_id", user.id)
+    .maybeSingle();
+
+  if (mutual) {
+    showMessage("It's a match! ❤️");
+  } else {
+    showMessage("Like sent!");
+  }
+}
+
+// ---------- LOAD MATCHES ----------
+async function loadMatches() {
+  const user = await getUser();
+  if (!user) return [];
+
+  const { data, error } = await db
+    .from("matches")
+    .select("*")
+    .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`);
+
+  if (error) {
+    console.error(error);
+    return [];
+  }
+
+  return data || [];
+}
+
+// ---------- SEND MESSAGE ----------
+async function sendMessage(matchId, message) {
+  const user = await getUser();
+  if (!user) return showMessage("Please login first.");
+
+  if (!message || !message.trim()) return;
+
+  const { error } = await db.from("messages").insert({
+    match_id: matchId,
+    sender_id: user.id,
+    body: message.trim()
+  });
+
+  if (error) return showMessage(error.message);
+}
+
+// ---------- LOAD CHAT ----------
+async function loadChat(matchId) {
+  const { data, error } = await db
+    .from("messages")
+    .select("*")
+    .eq("match_id", matchId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error(error);
+    return [];
+  }
+
+  return data || [];
+}
+
+// ---------- ADMIN CHECK ----------
+async function isAdmin() {
+  const user = await getUser();
+  if (!user) return false;
+
+  const { data, error } = await db
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (error) return false;
+
+  return data?.role === "admin";
+}
+
+// ---------- ADMIN USERS ----------
+async function adminUsers() {
+  if (!(await isAdmin())) {
+    showMessage("Admin access denied.");
+    return [];
+  }
+
+  const { data, error } = await db
+    .from("profiles")
+    .select("*");
+
+  if (error) return [];
+
+  return data || [];
+}
+
+// ---------- ADMIN CHANGE STATUS ----------
+async function adminSetStatus(userId, status) {
+  if (!(await isAdmin())) {
+    showMessage("Admin access denied.");
+    return;
+  }
+
+  const { error } = await db
+    .from("profiles")
+    .update({ status })
+    .eq("id", userId);
+
+  if (error) return showMessage(error.message);
+  showMessage("Status updated.");
+}
+
+// ---------- SESSION ----------
+async function checkSession() {
+  const user = await getUser();
+  console.log("Secret Meet session:", user ? "logged in" : "logged out");
+  return user;
+}
+
+// ---------- GLOBAL ACCESS ----------
+window.SecretMeet = {
+  db,
+  signup,
+  login,
+  logout,
+  getUser,
+  loadProfile,
+  updateProfile,
+  findMatches,
+  likeUser,
+  loadMatches,
+  sendMessage,
+  loadChat,
+  isAdmin,
+  adminUsers,
+  adminSetStatus,
+  checkSession
+};
+
+checkSession();
