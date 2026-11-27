@@ -1,11 +1,9 @@
-Secret Meet replacement frontend files
+SECRET MEET — SINGLE FILE PACKAGE
 
-Included:
-- index.html: frontend with working login/signup, discovery, profile, matches, chat, block/report, and admin view
-- app.js: client logic aligned to the SQL schema fields
+This ZIP contains the single-file website as index.html.
 
-IMPORTANT:
-Keep your existing config.js file in the GitHub repository. This replacement index.html loads config.js first and expects window.SECRET_MEET_CONFIG with SUPABASE_URL and SUPABASE_ANON_KEY (uppercase keys). It can also read lowercase supabaseUrl/supabaseAnonKey.
-Never put the Supabase service_role key in browser code. Use only anon/public key.
+Upload/replace index.html in your GitHub repository (Secret-meet-), commit the change, and wait for GitHub Pages to publish.
 
-These files have not been tested against the live Supabase project in a real browser session. Verify login/signup and RLS with two test accounts before inviting people.
+Supabase public URL is already configured in the page. The public anon/publishable key must be entered in the website's Connect/setup panel when prompted. Do NOT use a Supabase service_role/secret key.
+
+Note: This package has not been live-tested against your Supabase project/schema or RLS policies. Verify auth, profile, likes/matches, chat and admin moderation before treating it as production-ready.
